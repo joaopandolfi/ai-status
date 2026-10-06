@@ -128,27 +128,27 @@ func Overview(w io.Writer, d Store, now time.Time) error {
 			todayRows = append(todayRows, r)
 		}
 	}
+	perSession := tokensBySession(rows)
 
-	fmt.Fprintf(w, "qwen-status · %s\n\n", now.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(w, "%s · %s\n\n", paint("qwen-status", bold+";"+cyan), paint(now.Format("2006-01-02 15:04:05"), dim))
 
 	if len(live) == 0 {
-		fmt.Fprintln(w, "agentes vivos: nenhum")
+		fmt.Fprintln(w, paint("●", dim)+" "+paint("agentes vivos: nenhum", dim))
 	} else {
-		fmt.Fprintf(w, "agentes vivos (%d)\n", len(live))
+		fmt.Fprintf(w, "%s %s %s\n", paint("●", green), paint("agentes vivos", bold), paint(fmt.Sprintf("(%d)", len(live)), dim))
 		tw := tabwriter.NewWriter(w, 2, 4, 1, ' ', 0)
-		fmt.Fprintln(tw, "  nome\tprojeto\thá\tqwen\ttipo\ttokens (sessão)")
-		perSession := tokensBySession(rows)
+		fmt.Fprintln(tw, paint("  nome\tprojeto\thá\tqwen\ttipo\ttokens (sessão)", dim))
 		for _, ls := range live {
 			st := perSession[ls.SessionID]
 			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n",
-				ls.Name, shortPath(ls.CWD),
+				paint(ls.Name, bold), paint(shortPath(ls.CWD), dim),
 				humanDur(now.Sub(time.UnixMilli(ls.StartedAt)).Milliseconds()),
-				ls.QwenVersion, ls.Kind, humanInt(st.Tokens))
+				paint(ls.QwenVersion, dim), ls.Kind, paint(humanInt(st.Tokens), green))
 		}
 		tw.Flush()
 	}
 
-	fmt.Fprintf(w, "\nusos de hoje (%s)\n", today)
+	fmt.Fprintf(w, "\n%s %s %s\n", paint("●", cyan), paint("usos de hoje", bold), paint(today, dim))
 	renderAgg(w, Aggregate(todayRows))
 	return nil
 }
@@ -166,17 +166,18 @@ func LiveReport(w io.Writer, d Store, now time.Time) error {
 	}
 	perSession := tokensBySession(rows)
 	if len(live) == 0 {
-		fmt.Fprintln(w, "nenhum agente vivo")
+		fmt.Fprintln(w, paint("nenhum agente vivo", dim))
 		return nil
 	}
+	fmt.Fprintf(w, "%s %s %s\n", paint("●", green), paint("agentes vivos", bold), paint(fmt.Sprintf("(%d)", len(live)), dim))
 	tw := tabwriter.NewWriter(w, 2, 4, 1, ' ', 0)
-	fmt.Fprintln(tw, "  nome\tprojeto\thá\ttipo\ttokens\treqs\tmodelo")
+	fmt.Fprintln(tw, paint("  nome\tprojeto\thá\ttipo\ttokens\treqs\tmodelo", dim))
 	for _, ls := range live {
 		st := perSession[ls.SessionID]
 		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%d\t%s\n",
-			ls.Name, shortPath(ls.CWD),
+			paint(ls.Name, bold), paint(shortPath(ls.CWD), dim),
 			humanDur(now.Sub(time.UnixMilli(ls.StartedAt)).Milliseconds()),
-			ls.Kind, humanInt(st.Tokens), st.Reqs, st.TopModel)
+			ls.Kind, paint(humanInt(st.Tokens), green), st.Reqs, paint(st.TopModel, dim))
 	}
 	return tw.Flush()
 }
@@ -217,22 +218,34 @@ func UsageReport(w io.Writer, d Store, now time.Time, days int, model, project s
 	} else {
 		header = fmt.Sprintf("últimos %d dias (%s → %s)", days, since.Format("2006-01-02"), now.Format("2006-01-02"))
 	}
-	fmt.Fprintf(w, "período: %s\n\n", header)
+	fmt.Fprintf(w, "período: %s\n\n", paint(header, bold))
 	renderAgg(w, agg)
-	fmt.Fprintf(w, "\npor dia\n")
+	maxDay := int64(0)
+	for _, t := range agg.ByDay {
+		if t.Total > maxDay {
+			maxDay = t.Total
+		}
+	}
+	fmt.Fprintf(w, "\n%s %s\n", paint("●", cyan), paint("por dia", bold))
 	tw := tabwriter.NewWriter(w, 2, 4, 1, ' ', 0)
-	fmt.Fprintln(tw, "  data\treqs\tinput\toutput\tcached\ttotal\tlatência")
+	fmt.Fprintln(tw, paint("  data\treqs\tinput\toutput\tcached\ttotal\tlatência\t", dim))
 	for _, day := range sortedKeys(agg.ByDay) {
 		t := agg.ByDay[day]
-		fmt.Fprintf(tw, "  %s\t%d\t%s\t%s\t%s\t%s\t%s\n", day, t.Requests, humanInt(t.Input), humanInt(t.Output), humanInt(t.Cached), humanInt(t.Total), humanDur(t.LatencyMs))
+		fmt.Fprintf(tw, "  %s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n", day, t.Requests, humanInt(t.Input), humanInt(t.Output), humanInt(t.Cached), paint(humanInt(t.Total), green), humanDur(t.LatencyMs), bar(t.Total, maxDay))
 	}
 	tw.Flush()
-	fmt.Fprintln(w, "\npor modelo")
+	maxModel := int64(0)
+	for _, t := range agg.ByModel {
+		if t.Total > maxModel {
+			maxModel = t.Total
+		}
+	}
+	fmt.Fprintf(w, "\n%s %s\n", paint("●", cyan), paint("por modelo", bold))
 	tw = tabwriter.NewWriter(w, 2, 4, 1, ' ', 0)
-	fmt.Fprintln(tw, "  modelo\treqs\tinput\toutput\tcached\ttotal\tlatência")
+	fmt.Fprintln(tw, paint("  modelo\treqs\tinput\toutput\tcached\ttotal\tlatência\t", dim))
 	for _, m := range sortedKeys(agg.ByModel) {
 		t := agg.ByModel[m]
-		fmt.Fprintf(tw, "  %s\t%d\t%s\t%s\t%s\t%s\t%s\n", m, t.Requests, humanInt(t.Input), humanInt(t.Output), humanInt(t.Cached), humanInt(t.Total), humanDur(t.LatencyMs))
+		fmt.Fprintf(tw, "  %s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n", m, t.Requests, humanInt(t.Input), humanInt(t.Output), humanInt(t.Cached), paint(humanInt(t.Total), green), humanDur(t.LatencyMs), bar(t.Total, maxModel))
 	}
 	return agg, tw.Flush()
 }
@@ -247,20 +260,21 @@ func SessionsReport(w io.Writer, d Store, limit int) ([]SessionRecord, error) {
 		recs = recs[:limit]
 	}
 	if len(recs) == 0 {
-		fmt.Fprintln(w, "nenhuma sessão registrada")
+		fmt.Fprintln(w, paint("nenhuma sessão registrada", dim))
 		return recs, nil
 	}
+	fmt.Fprintf(w, "%s %s %s\n", paint("●", cyan), paint("sessões finalizadas", bold), paint(fmt.Sprintf("(%d)", len(recs)), dim))
 	tw := tabwriter.NewWriter(w, 2, 4, 1, ' ', 0)
-	fmt.Fprintln(tw, "  sessão\tinício\tprojeto\tduração\treqs\ttokens\ttools\tarquivos\tmodelos")
+	fmt.Fprintln(tw, paint("  sessão\tinício\tprojeto\tduração\treqs\ttokens\ttools\tarquivos\tmodelos", dim))
 	for _, r := range recs {
 		tools := strconv.Itoa(r.ToolCalls)
 		if r.ToolFails > 0 {
-			tools += fmt.Sprintf(" (%d✗)", r.ToolFails)
+			tools = paint(tools+" ("+strconv.Itoa(r.ToolFails)+"✗)", yellow)
 		}
-		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%d\t%s\t%s\t+%d -%d\t%s\n",
-			shortID(r.SessionID), r.StartTime.Format("01-02 15:04"), filepath.Base(r.Project),
-			humanDur(r.DurationMs), r.TotalRequests, humanInt(r.TotalTokens), tools,
-			r.LinesAdded, r.LinesRemoved, strings.Join(modelNames(r.Models), ","))
+		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\n",
+			paint(shortID(r.SessionID), dim), r.StartTime.Format("01-02 15:04"), paint(filepath.Base(r.Project), dim),
+			humanDur(r.DurationMs), r.TotalRequests, paint(humanInt(r.TotalTokens), green), tools,
+			paint(fmt.Sprintf("%+d -%d", r.LinesAdded, r.LinesRemoved), green), paint(strings.Join(modelNames(r.Models), ","), dim))
 	}
 	return recs, tw.Flush()
 }
@@ -269,14 +283,14 @@ func SessionsReport(w io.Writer, d Store, limit int) ([]SessionRecord, error) {
 
 func renderAgg(w io.Writer, a *UsageAgg) {
 	if a.All.Requests == 0 {
-		fmt.Fprintln(w, "  (sem uso registrado)")
+		fmt.Fprintln(w, paint("  (sem uso registrado)", dim))
 		return
 	}
 	tw := tabwriter.NewWriter(w, 2, 4, 1, ' ', 0)
-	fmt.Fprintln(tw, "  \treqs\tinput\toutput\tcached\tthoughts\ttotal\tlatência")
+	fmt.Fprintln(tw, paint("  \treqs\tinput\toutput\tcached\tthoughts\ttotal\tlatência", dim))
 	fmt.Fprintf(tw, "  main\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n", a.Main.Requests, humanInt(a.Main.Input), humanInt(a.Main.Output), humanInt(a.Main.Cached), humanInt(a.Main.Thoughts), humanInt(a.Main.Total), humanDur(a.Main.LatencyMs))
 	fmt.Fprintf(tw, "  sub\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n", a.Sub.Requests, humanInt(a.Sub.Input), humanInt(a.Sub.Output), humanInt(a.Sub.Cached), humanInt(a.Sub.Thoughts), humanInt(a.Sub.Total), humanDur(a.Sub.LatencyMs))
-	fmt.Fprintf(tw, "  total\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n", a.All.Requests, humanInt(a.All.Input), humanInt(a.All.Output), humanInt(a.All.Cached), humanInt(a.All.Thoughts), humanInt(a.All.Total), humanDur(a.All.LatencyMs))
+	fmt.Fprintf(tw, "  %s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n", paint("total", bold), a.All.Requests, humanInt(a.All.Input), humanInt(a.All.Output), humanInt(a.All.Cached), humanInt(a.All.Thoughts), paint(humanInt(a.All.Total), green), humanDur(a.All.LatencyMs))
 	tw.Flush()
 	if len(a.ByModel) > 0 {
 		var parts []string
@@ -284,7 +298,7 @@ func renderAgg(w io.Writer, a *UsageAgg) {
 			t := a.ByModel[m]
 			parts = append(parts, fmt.Sprintf("%s %d req · %s tok", m, t.Requests, humanInt(t.Total)))
 		}
-		fmt.Fprintf(w, "  modelos: %s\n", strings.Join(parts, " | "))
+		fmt.Fprintln(w, paint("  modelos: "+strings.Join(parts, " | "), dim))
 	}
 }
 
@@ -341,6 +355,49 @@ func humanInt(n int64) string {
 		return f(float64(n)/1e3, "K")
 	}
 	return strconv.FormatInt(n, 10)
+}
+
+// ---------- cor / tui ----------
+
+// colorOn: cor só em TTY e sem NO_COLOR; pipeline segue limpo.
+var colorOn = func() bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	fi, err := os.Stdout.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}()
+
+const (
+	bold   = "1"
+	dim    = "2"
+	red    = "31"
+	green  = "32"
+	yellow = "33"
+	cyan   = "36"
+)
+
+func paint(s, code string) string {
+	if !colorOn || s == "" {
+		return s
+	}
+	return "\033[" + code + "m" + s + "\033[0m"
+}
+
+// bar desenha mini-gráfico de blocos; max é o maior valor da série.
+func bar(n, max int64) string {
+	if n <= 0 || max <= 0 {
+		return paint("·", dim)
+	}
+	const w = 10
+	f := int(float64(n) / float64(max) * w)
+	if f < 1 {
+		f = 1
+	}
+	if f > w {
+		f = w
+	}
+	return paint(strings.Repeat("█", f), cyan)
 }
 
 func humanDur(ms int64) string {

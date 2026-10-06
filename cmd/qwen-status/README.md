@@ -56,6 +56,8 @@ arquivos (linhas inválidas são puladas, pids mortos são filtrados).
 
 ## Observações
 
+- TUI colorida quando stdout é TTY; respeita `NO_COLOR`. Em pipe a saída segue
+  limpa, sem escapes ANSI — seguro pra pipeline.
 - "main" vs "sub": a coluna `source` do registro distingue o turno principal do
   agente dos subagentes/ferramentas internas (Explore, memory extractor, etc.).
 - Tokens de sessões vivas são contabilizados desde o início do mês corrente

@@ -11,14 +11,25 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
+	"regexp"
+	"strings"
 	"time"
+	"unicode/utf8"
 )
+
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// visible devolve a largura em colunas de uma linha, ignorando escapes ANSI.
+func visible(s string) int {
+	return utf8.RuneCountInString(ansiRe.ReplaceAllString(s, ""))
+}
 
 const usageText = `qwen-status — monitor de agentes qwen-code (lê ~/.qwen, sem rede)
 
@@ -119,11 +130,39 @@ func printJSON(v any) error {
 func watch(d Store, interval time.Duration) error {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
+	fmt.Print("\033[2J\033[H\033[?25l") // limpa 1x, esconde o cursor (evita piscar em cima do texto)
+	defer fmt.Print("\033[?25h")       // devolve o cursor ao sair
+	prev := []string{}
 	for {
-		fmt.Print("\033[2J\033[H") // limpa a tela e volta o cursor
-		if err := Overview(os.Stdout, d, time.Now()); err != nil {
+		var b bytes.Buffer
+		if err := Overview(&b, d, time.Now()); err != nil {
 			fmt.Fprintln(os.Stderr, "erro:", err)
 		}
+		b.WriteString(paint(fmt.Sprintf("atualiza a cada %s · ctrl-c sai", interval), dim))
+		lines := strings.Split(b.String(), "\n")
+
+		// Sobrescreve no lugar: volta ao topo, pinta o frame novo e estica cada
+		// linha com espaços até a largura da anterior — nada de 2J por tick.
+		var out strings.Builder
+		out.WriteString("\033[H")
+		for i, line := range lines {
+			if i > 0 {
+				out.WriteString("\r\n")
+			}
+			out.WriteString(line)
+			if i < len(prev) && visible(prev[i]) > visible(line) {
+				out.WriteString(strings.Repeat(" ", visible(prev[i])-visible(line)))
+			}
+		}
+		for i := len(lines); i < len(prev); i++ {
+			out.WriteString("\r\n")
+			out.WriteString(strings.Repeat(" ", visible(prev[i])))
+		}
+		if _, err := os.Stdout.WriteString(out.String()); err != nil {
+			return err
+		}
+		prev = lines
+
 		select {
 		case <-sig:
 			return nil
