@@ -1,5 +1,16 @@
 # ai-status
 
+Ferramentas de monitoramento local para o stack Qwen Code:
+
+| Ferramenta | Caminho | O que faz |
+|---|---|---|
+| `ai-status` | `.` (raiz) | Dashboard do servidor SGLang (Prometheus `/metrics`) |
+| `qwen-status` | [`cmd/qwen-status`](cmd/qwen-status) | Monitor de agentes qwen-code: sessões vivas, tokens, histórico (lê `~/.qwen`, sem rede) |
+
+---
+
+## ai-status (raiz)
+
 Dashboard de terminal para o servidor SGLang usado pelo Qwen Code. Lê o endpoint
 Prometheus `/metrics` a cada segundo e mostra throughput, sessões em paralelo,
 KV cache, latência e speculative decoding. Só stdlib do Go, zero dependências.
