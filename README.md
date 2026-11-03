@@ -22,17 +22,20 @@ go build -o ai-status .
 ./ai-status
 ```
 
-A URL do servidor é lida de `~/.qwen/settings.json`: o provider cujo `id` é o
-modelo ativo (`model.name`) e cujo nome/descrição contém "sglang"; senão, o
-primeiro provider SGLang encontrado. O sufixo `/v1` é removido.
+Monitora vários servidores SGLang. A barra no topo mostra os providers; troque
+com `1`-`9`, `tab` ou `←`/`→` (`q` sai). A lista vem de `~/.qwen/settings.json`
+(providers cujo nome/descrição contém "sglang", o do modelo ativo primeiro) mais
+`extraProviders` em `main.go` (hoje `http://10.162.1.23:11436`). O sufixo `/v1`
+é removido e URLs repetidas são ignoradas. Ao trocar, as janelas e históricos
+recomeçam.
 
 | Flag   | Padrão | Descrição                                    |
 |--------|--------|----------------------------------------------|
-| `-url` | config | URL base do SGLang, ex. `http://host:11435`  |
+| `-url` | config | URLs base do SGLang separadas por vírgula, ex. `http://a:11435,http://b:11436` |
 | `-i`   | `1s`   | intervalo de polling                         |
 | `-w`   | `5`    | janela das taxas e médias, em amostras       |
 
-Sair: `ctrl-c`.
+Sair: `q` ou `ctrl-c`.
 
 ## Requisito
 
